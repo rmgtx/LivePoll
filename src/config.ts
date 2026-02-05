@@ -22,4 +22,8 @@ export const POLL_CONFIG = {
   title: "Baby Pool 👶",
   subtitle: "Pick your date — let's see who's closest!",
   footer: "Powered by AI · Built live on this call",
+
+  // Admin password to close the poll (type in the URL: ?admin=close)
+  // Or use the lock button in the UI with this code
+  adminCode: "baby2026",
 };

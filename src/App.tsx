@@ -13,6 +13,8 @@ import {
   Trophy,
   Confetti,
   CalendarBlank,
+  Lock,
+  LockOpen,
 } from '@phosphor-icons/react';
 import { POLL_CONFIG } from './config';
 
@@ -39,12 +41,38 @@ function App() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [hasVoted, setHasVoted] = useState(false);
   const [showResults, setShowResults] = useState(false);
+  const [pollClosed, setPollClosed] = useState(false);
+  const [showAdminInput, setShowAdminInput] = useState(false);
+  const [adminInput, setAdminInput] = useState('');
 
   // Track votes by date string
   const [dateVotes, setDateVotes] = useState<Record<string, number>>({});
 
   const dateMin = useMemo(() => new Date(POLL_CONFIG.dateRange.start), []);
   const dateMax = useMemo(() => new Date(POLL_CONFIG.dateRange.end), []);
+
+  // Check URL params for admin close
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('admin') === 'close') {
+      setPollClosed(true);
+      setShowResults(true);
+    }
+  }, []);
+
+  const handleAdminClose = useCallback(() => {
+    if (adminInput === POLL_CONFIG.adminCode) {
+      setPollClosed(true);
+      setShowResults(true);
+      setShowAdminInput(false);
+    } else {
+      setAdminInput('');
+    }
+  }, [adminInput]);
+
+  const handleAdminReopen = useCallback(() => {
+    setPollClosed(false);
+  }, []);
 
   // Simulate other people's votes for demo
   useEffect(() => {
@@ -118,12 +146,20 @@ function App() {
             </div>
             <span className="text-sm font-semibold">{POLL_CONFIG.title}</span>
           </div>
-          {totalVotes > 0 && (
-            <Badge variant="secondary" className="gap-1.5 font-normal tabular-nums">
-              <Users className="w-3 h-3" weight="bold" />
-              {totalVotes} guess{totalVotes !== 1 ? 'es' : ''}
-            </Badge>
-          )}
+          <div className="flex items-center gap-2">
+            {pollClosed && (
+              <Badge variant="destructive" className="gap-1 text-xs">
+                <Lock className="w-3 h-3" weight="bold" />
+                Closed
+              </Badge>
+            )}
+            {totalVotes > 0 && (
+              <Badge variant="secondary" className="gap-1.5 font-normal tabular-nums">
+                <Users className="w-3 h-3" weight="bold" />
+                {totalVotes} guess{totalVotes !== 1 ? 'es' : ''}
+              </Badge>
+            )}
+          </div>
         </div>
       </header>
 
@@ -140,13 +176,17 @@ function App() {
                 {POLL_CONFIG.question}
               </CardTitle>
               <CardDescription className="mt-2">
-                {hasVoted ? 'Results are updating live' : POLL_CONFIG.subtitle}
+                {pollClosed
+                  ? 'Voting is closed — final results below'
+                  : hasVoted
+                  ? 'Results are updating live'
+                  : POLL_CONFIG.subtitle}
               </CardDescription>
             </CardHeader>
 
             <CardContent className="pt-2 space-y-4">
               {/* Date Picker */}
-              {!hasVoted && (
+              {!hasVoted && !pollClosed && (
                 <>
                   <div className="flex justify-center">
                     <Popover>
@@ -186,6 +226,15 @@ function App() {
                     Lock In My Guess
                   </Button>
                 </>
+              )}
+
+              {/* Poll closed message for non-voters */}
+              {pollClosed && !hasVoted && (
+                <div className="text-center py-2">
+                  <p className="text-sm text-muted-foreground">
+                    Voting has ended. Here are the final results:
+                  </p>
+                </div>
               )}
 
               {/* Results */}
@@ -260,6 +309,44 @@ function App() {
           </Card>
         </div>
       </main>
+
+      {/* Admin Controls */}
+      <div className="max-w-2xl mx-auto w-full px-4 pb-4">
+        {!showAdminInput ? (
+          <button
+            onClick={() => setShowAdminInput(true)}
+            className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors mx-auto block"
+          >
+            Admin
+          </button>
+        ) : (
+          <div className="flex items-center justify-center gap-2">
+            <input
+              type="password"
+              placeholder="Admin code"
+              value={adminInput}
+              onChange={(e) => setAdminInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleAdminClose()}
+              className="h-8 px-3 text-xs border rounded-md w-32 bg-background"
+              autoFocus
+            />
+            {!pollClosed ? (
+              <Button size="sm" variant="destructive" onClick={handleAdminClose} className="h-8 gap-1 text-xs">
+                <Lock className="w-3 h-3" weight="bold" />
+                Close Poll
+              </Button>
+            ) : (
+              <Button size="sm" variant="outline" onClick={handleAdminReopen} className="h-8 gap-1 text-xs">
+                <LockOpen className="w-3 h-3" weight="bold" />
+                Reopen
+              </Button>
+            )}
+            <Button size="sm" variant="ghost" onClick={() => setShowAdminInput(false)} className="h-8 text-xs">
+              Cancel
+            </Button>
+          </div>
+        )}
+      </div>
 
       {/* Footer */}
       <footer className="border-t">
