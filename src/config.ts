@@ -19,7 +19,7 @@ export const POLL_CONFIG = {
   options: [] as string[],
 
   // Branding
-  title: "Baby Pool 👶",
+  title: "MC Baby Watch 👶",
   subtitle: "Pick your date — let's see who's closest!",
   footer: "Powered by AI · Built live on this call",
 
