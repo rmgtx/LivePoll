@@ -4,22 +4,22 @@
 
 export const POLL_CONFIG = {
   // The main question
-  question: "What's the biggest AI opportunity for our business?",
+  question: "When is MC's baby gonna be here?? 👶",
 
-  // Answer options (add/remove as needed)
-  options: [
-    "Customer Experience & Personalization",
-    "Content Creation & Marketing",
-    "Data Analytics & Insights",
-    "Internal Process Automation",
-    "Product Innovation",
-  ],
+  // Poll type: "options" = pick from list, "date" = pick a date
+  type: "date" as const,
+
+  // Date range for the date picker (inclusive)
+  dateRange: {
+    start: "2026-02-15",
+    end: "2026-05-31",
+  },
+
+  // Answer options (only used if type = "options")
+  options: [] as string[],
 
   // Branding
-  title: "Live Poll",
-  subtitle: "Vote now — results update in real-time",
+  title: "Baby Pool 👶",
+  subtitle: "Pick your date — let's see who's closest!",
   footer: "Powered by AI · Built live on this call",
-
-  // Theme accent (tailwind color class suffix)
-  accentColor: "blue",
 };

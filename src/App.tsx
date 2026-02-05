@@ -1,19 +1,22 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   ChartBar,
   CheckCircle,
-  Lightning,
+  Baby,
   Users,
   Trophy,
   Confetti,
+  CalendarBlank,
 } from '@phosphor-icons/react';
 import { POLL_CONFIG } from './config';
 
-const COLORS = [
+const BAR_COLORS = [
   'bg-blue-500',
   'bg-emerald-500',
   'bg-violet-500',
@@ -24,73 +27,85 @@ const COLORS = [
   'bg-teal-500',
 ];
 
-const LIGHT_COLORS = [
-  'bg-blue-100 text-blue-700',
-  'bg-emerald-100 text-emerald-700',
-  'bg-violet-100 text-violet-700',
-  'bg-amber-100 text-amber-700',
-  'bg-rose-100 text-rose-700',
-  'bg-cyan-100 text-cyan-700',
-  'bg-pink-100 text-pink-700',
-  'bg-teal-100 text-teal-700',
-];
+function formatDate(d: Date): string {
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function formatShortDate(d: Date): string {
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
 
 function App() {
-  const [votes, setVotes] = useState<number[]>(
-    new Array(POLL_CONFIG.options.length).fill(0)
-  );
-  const [selected, setSelected] = useState<number | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [hasVoted, setHasVoted] = useState(false);
-  const [animatingIndex, setAnimatingIndex] = useState<number | null>(null);
   const [showResults, setShowResults] = useState(false);
 
-  // Simulate other people voting for demo effect
+  // Track votes by date string
+  const [dateVotes, setDateVotes] = useState<Record<string, number>>({});
+
+  const dateMin = useMemo(() => new Date(POLL_CONFIG.dateRange.start), []);
+  const dateMax = useMemo(() => new Date(POLL_CONFIG.dateRange.end), []);
+
+  // Simulate other people's votes for demo
   useEffect(() => {
     if (!hasVoted) return;
 
-    const interval = setInterval(() => {
-      setVotes((prev) => {
-        const next = [...prev];
-        const randomIndex = Math.floor(Math.random() * next.length);
-        next[randomIndex] += Math.random() > 0.5 ? 1 : (Math.random() > 0.3 ? 1 : 0);
-        return next;
+    // Initial burst of "other votes"
+    const initialVotes: Record<string, number> = {};
+    const baseDate = new Date(POLL_CONFIG.dateRange.start);
+    const endDate = new Date(POLL_CONFIG.dateRange.end);
+    const range = endDate.getTime() - baseDate.getTime();
+
+    for (let i = 0; i < 12; i++) {
+      const randomDate = new Date(baseDate.getTime() + Math.random() * range);
+      const key = randomDate.toISOString().split('T')[0];
+      initialVotes[key] = (initialVotes[key] || 0) + 1;
+    }
+
+    setDateVotes((prev) => {
+      const next = { ...prev };
+      Object.entries(initialVotes).forEach(([k, v]) => {
+        next[k] = (next[k] || 0) + v;
       });
-    }, 2000 + Math.random() * 3000);
+      return next;
+    });
+
+    // Trickle in more votes
+    const interval = setInterval(() => {
+      const randomDate = new Date(baseDate.getTime() + Math.random() * range);
+      const key = randomDate.toISOString().split('T')[0];
+      setDateVotes((prev) => ({
+        ...prev,
+        [key]: (prev[key] || 0) + 1,
+      }));
+    }, 2500 + Math.random() * 3000);
 
     return () => clearInterval(interval);
   }, [hasVoted]);
 
-  const totalVotes = votes.reduce((a, b) => a + b, 0);
+  const totalVotes = Object.values(dateVotes).reduce((a, b) => a + b, 0);
+
+  // Sort votes for display (top dates)
+  const sortedVotes = useMemo(() => {
+    return Object.entries(dateVotes)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 8);
+  }, [dateVotes]);
+
+  const maxVotes = sortedVotes.length > 0 ? sortedVotes[0][1] : 0;
 
   const handleVote = useCallback(() => {
-    if (selected === null) return;
+    if (!selectedDate) return;
 
-    setAnimatingIndex(selected);
-    setVotes((prev) => {
-      const next = [...prev];
-      next[selected] += 1;
-      return next;
-    });
+    const key = selectedDate.toISOString().split('T')[0];
+    setDateVotes((prev) => ({
+      ...prev,
+      [key]: (prev[key] || 0) + 1,
+    }));
     setHasVoted(true);
 
-    // Add some initial "other votes" for demo realism
-    setTimeout(() => {
-      setVotes((prev) => {
-        const next = [...prev];
-        POLL_CONFIG.options.forEach((_, i) => {
-          if (i !== selected) {
-            next[i] += Math.floor(Math.random() * 4) + 1;
-          }
-        });
-        return next;
-      });
-      setShowResults(true);
-    }, 600);
-
-    setTimeout(() => setAnimatingIndex(null), 800);
-  }, [selected]);
-
-  const maxVotes = Math.max(...votes);
+    setTimeout(() => setShowResults(true), 600);
+  }, [selectedDate]);
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -106,7 +121,7 @@ function App() {
           {totalVotes > 0 && (
             <Badge variant="secondary" className="gap-1.5 font-normal tabular-nums">
               <Users className="w-3 h-3" weight="bold" />
-              {totalVotes} vote{totalVotes !== 1 ? 's' : ''}
+              {totalVotes} guess{totalVotes !== 1 ? 'es' : ''}
             </Badge>
           )}
         </div>
@@ -119,7 +134,7 @@ function App() {
           <Card>
             <CardHeader className="text-center pb-2">
               <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-primary/10 mx-auto mb-3">
-                <Lightning className="w-6 h-6 text-primary" weight="fill" />
+                <Baby className="w-6 h-6 text-primary" weight="fill" />
               </div>
               <CardTitle className="text-xl sm:text-2xl leading-tight">
                 {POLL_CONFIG.question}
@@ -129,93 +144,107 @@ function App() {
               </CardDescription>
             </CardHeader>
 
-            <CardContent className="pt-2 space-y-3">
-              {POLL_CONFIG.options.map((option, index) => {
-                const percentage = totalVotes > 0 ? Math.round((votes[index] / totalVotes) * 100) : 0;
-                const isWinning = votes[index] === maxVotes && totalVotes > 0;
-                const isSelected = selected === index;
-                const isAnimating = animatingIndex === index;
-
-                return (
-                  <button
-                    key={index}
-                    onClick={() => !hasVoted && setSelected(index)}
-                    disabled={hasVoted}
-                    className={`relative w-full text-left rounded-xl border-2 transition-all overflow-hidden ${
-                      hasVoted
-                        ? 'cursor-default border-border'
-                        : isSelected
-                        ? 'border-primary ring-2 ring-primary/20'
-                        : 'border-border hover:border-primary/40 cursor-pointer'
-                    } ${isAnimating ? 'scale-[1.02]' : ''}`}
-                  >
-                    {/* Background fill bar */}
-                    {showResults && (
-                      <div
-                        className={`absolute inset-0 ${COLORS[index % COLORS.length]} opacity-10 transition-all duration-1000 ease-out`}
-                        style={{ width: `${percentage}%` }}
-                      />
-                    )}
-
-                    <div className="relative px-4 py-3.5 flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        {/* Selection indicator / result badge */}
-                        {!hasVoted ? (
-                          <div
-                            className={`w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors ${
-                              isSelected
-                                ? 'border-primary bg-primary'
-                                : 'border-muted-foreground/30'
-                            }`}
-                          >
-                            {isSelected && (
-                              <CheckCircle className="w-4 h-4 text-primary-foreground" weight="fill" />
-                            )}
-                          </div>
-                        ) : (
-                          <span
-                            className={`shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold ${LIGHT_COLORS[index % LIGHT_COLORS.length]}`}
-                          >
-                            {isWinning && totalVotes > 1 ? (
-                              <Trophy className="w-3.5 h-3.5" weight="fill" />
-                            ) : (
-                              index + 1
-                            )}
-                          </span>
-                        )}
-
-                        <span className="text-sm font-medium truncate">{option}</span>
-                      </div>
-
-                      {showResults && (
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="text-xs text-muted-foreground tabular-nums">
-                            {votes[index]}
-                          </span>
-                          <span className="text-sm font-bold tabular-nums w-10 text-right">
-                            {percentage}%
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
-
-              {/* Vote Button */}
+            <CardContent className="pt-2 space-y-4">
+              {/* Date Picker */}
               {!hasVoted && (
                 <>
-                  <Separator className="my-2" />
+                  <div className="flex justify-center">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="lg"
+                          className={`w-full max-w-xs gap-2 justify-start text-left font-normal ${
+                            !selectedDate ? 'text-muted-foreground' : ''
+                          }`}
+                        >
+                          <CalendarBlank className="w-4 h-4" weight="duotone" />
+                          {selectedDate ? formatDate(selectedDate) : 'Pick a date...'}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="center">
+                        <Calendar
+                          mode="single"
+                          selected={selectedDate}
+                          onSelect={setSelectedDate}
+                          disabled={(date) => date < dateMin || date > dateMax}
+                          defaultMonth={dateMin}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+
+                  <Separator />
+
                   <Button
                     onClick={handleVote}
-                    disabled={selected === null}
+                    disabled={!selectedDate}
                     className="w-full gap-2"
                     size="lg"
                   >
                     <Confetti className="w-4 h-4" weight="bold" />
-                    Submit Vote
+                    Lock In My Guess
                   </Button>
                 </>
+              )}
+
+              {/* Results */}
+              {showResults && sortedVotes.length > 0 && (
+                <div className="space-y-2.5">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Top Guesses
+                  </p>
+                  {sortedVotes.map(([dateKey, count], index) => {
+                    const date = new Date(dateKey + 'T12:00:00');
+                    const percentage = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
+                    const isTop = index === 0;
+                    const isUserPick = selectedDate && dateKey === selectedDate.toISOString().split('T')[0];
+
+                    return (
+                      <div
+                        key={dateKey}
+                        className={`relative rounded-lg border overflow-hidden transition-all ${
+                          isUserPick ? 'border-primary ring-1 ring-primary/20' : 'border-border'
+                        }`}
+                      >
+                        {/* Background bar */}
+                        <div
+                          className={`absolute inset-0 ${BAR_COLORS[index % BAR_COLORS.length]} opacity-10 transition-all duration-1000 ease-out`}
+                          style={{ width: `${maxVotes > 0 ? (count / maxVotes) * 100 : 0}%` }}
+                        />
+
+                        <div className="relative px-4 py-3 flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs font-bold text-muted-foreground w-5">
+                              {isTop ? (
+                                <Trophy className="w-4 h-4 text-amber-500" weight="fill" />
+                              ) : (
+                                `#${index + 1}`
+                              )}
+                            </span>
+                            <span className="text-sm font-medium">
+                              {formatShortDate(date)}
+                            </span>
+                            {isUserPick && (
+                              <Badge variant="outline" className="text-xs h-5 gap-1">
+                                <CheckCircle className="w-3 h-3" weight="fill" />
+                                You
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground tabular-nums">
+                              {count} vote{count !== 1 ? 's' : ''}
+                            </span>
+                            <span className="text-sm font-bold tabular-nums w-10 text-right">
+                              {percentage}%
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
 
               {/* Voted confirmation */}
@@ -223,7 +252,7 @@ function App() {
                 <div className="text-center pt-2">
                   <p className="text-xs text-muted-foreground flex items-center justify-center gap-1.5">
                     <CheckCircle className="w-3.5 h-3.5 text-emerald-500" weight="fill" />
-                    Your vote has been recorded · Results update live
+                    Your guess: <strong>{selectedDate ? formatDate(selectedDate) : ''}</strong> · Results update live
                   </p>
                 </div>
               )}
